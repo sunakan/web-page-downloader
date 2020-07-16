@@ -1,0 +1,45 @@
+################################################################################
+# 変数
+################################################################################
+PROJECT_NAME           := web-page-downloader
+DOCKER_RUST_TAG        := slim
+DOCKER_REPOSITORY_NAME := web-page-downloader
+DOCKER_NETWORK_NAME    := web-page-downloader-network
+DOCKER_NETWORK_SUBNET  := 192.168.200.0/24
+DOCKER_BUILD_TARGET    := development
+
+################################################################################
+# マクロ
+################################################################################
+define docker-rust
+  docker run \
+    --rm \
+    --interactive \
+    --tty \
+    --user `id -u`:`id -g` \
+    --workdir $(PWD)/ \
+    --mount type=bind,source=$(PWD)/,target=$(PWD)/ \
+    --env USER=${USER} \
+    $(DOCKER_REPOSITORY_NAME):$(DOCKER_BUILD_TARGET)
+endef
+
+################################################################################
+# タスク
+################################################################################
+docker-network:
+	( docker network ls | grep $(DOCKER_NETWORK_NAME) ) \
+	|| docker network create $(DOCKER_NETWORK_NAME) --subnet $(DOCKER_NETWORK_SUBNET)
+
+build-docker: ## Docker Image をbuild
+	docker build ./ \
+		--build-arg DOCKER_RUST_TAG=$(DOCKER_RUST_TAG) \
+		--tag $(DOCKER_REPOSITORY_NAME):$(DOCKER_BUILD_TARGET) \
+		--target $(DOCKER_BUILD_TARGET)
+
+clean: ## targetやdocker networkを削除
+	rm -rf target
+	docker network rm $(DOCKER_NETWORK_NAME) || echo Could not remove network
+
+bash: ## 開発環境コンテナへbash
+	@make docker-network
+	$(call docker-rust) bash
